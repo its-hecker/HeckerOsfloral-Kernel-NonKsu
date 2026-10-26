@@ -1,0 +1,54 @@
+name: Import and verify non-KSU Floral kernel
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/import-source.yml, tools/hecker/**]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: nonksu-kernel-import
+  cancel-in-progress: false
+jobs:
+  import-and-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          submodules: false
+          lfs: false
+      - name: Derive the non-KSU tree from the exact current ROM kernel
+        env:
+          SOURCE_SHA: 48d6881fb8537f62811209927022e467d37e3a98
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 https://github.com/its-hecker/heckeros-floral-kernel.git "$SOURCE_SHA"
+          test "$(git rev-parse FETCH_HEAD)" = "$SOURCE_SHA"
+          if git cat-file -e HEAD:NONKSU_SOURCE.json 2>/dev/null; then
+            echo "Non-KSU source already imported; checking the existing tree."
+          else
+            bootstrap_dir="$(mktemp -d)"
+            cp -a .github tools README.HeckerOS.md "$bootstrap_dir/"
+            git read-tree --reset -u "$SOURCE_SHA^{tree}"
+            git rm -r --ignore-unmatch .github/workflows
+            mkdir -p .github/workflows tools/hecker
+            cp "$bootstrap_dir/.github/workflows/import-source.yml" .github/workflows/import-source.yml
+            cp -a "$bootstrap_dir/tools/hecker/." tools/hecker/
+            cp "$bootstrap_dir/README.HeckerOS.md" README.HeckerOS.md
+            python3 tools/hecker/make_nonksu.py
+            python3 tools/hecker/verify_nonksu.py
+            git add --all
+            git add -f .github/workflows/import-source.yml tools/hecker/.gitignore
+            git -c user.name='HeckerOS source import' -c user.email='source-import@heckeros.local' commit -m 'Derive Floral non-KSU kernel; remove KernelSU Next and SUSFS while preserving other features'
+            git -c core.hooksPath=/dev/null push origin HEAD:main
+          fi
+      - name: Verify source, root absence, packaging guards and Kconfig
+        run: |
+          set -euo pipefail
+          python3 tools/hecker/verify_nonksu.py
+          python3 -m unittest discover -s tools/hecker/tests -v
+          make -s O="$RUNNER_TEMP/floral-nonksu-config" ARCH=arm64 CC=cc HOSTCC=cc floral_defconfig
+          if grep -E '^CONFIG_KSU(_[A-Z0-9_]+)?=' "$RUNNER_TEMP/floral-nonksu-config/.config"; then exit 1; fi
+          grep -q '^CONFIG_MODVERSIONS=y$' "$RUNNER_TEMP/floral-nonksu-config/.config"
