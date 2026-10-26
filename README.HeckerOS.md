@@ -16,62 +16,57 @@ an opt-out variant; it does not change the normal ROM kernel or kernel features.
 “Non-KSU” describes removal of the built-in kernel root framework. It does not change
 the ROM's existing userdebug/development-ADB configuration or promise an integrity verdict.
 
-## GitHub Actions boot image builds
+## Standalone GitHub Actions builds
 
-Open **Actions → Build non-KSU boot image → Run workflow** in this repository.
-The hosted Ubuntu job compiles this kernel and uploads a device-specific `boot.img`,
-SHA-256 checksums and JSON build provenance as an Actions artifact. Choose `coral` or
-`flame` and supply the matching ROM baseline archive's direct HTTPS URL and SHA-256.
-Run it separately for each device and release. It does not publish a GitHub release.
+**Actions → Build Floral kernel and boot image** compiles this kernel directly on every
+push to `main` (except documentation-only changes). **Run workflow** can also start it
+manually with all fields left at their defaults. No ROM source checkout, completed ROM
+build, exported baseline, ROM configuration or ROM compiler snapshot is required.
 
-The baseline comes from a **completed normal, KSU-enabled HeckerOS ROM build**.
-A boot image alone is insufficient: the job also needs that build's kernel configuration,
-exported module CRCs, kernel release, exact Clang/linker and Android packaging tools.
-The exporter collects these automatically. The complete Android source tree stays on
-your ROM build machine; Actions only receives the smaller baseline archive.
+The job fetches pinned AOSP Clang `clang-r416183b`, the version declared by this tree's
+`build.config.common`, and uses the tree's own `floral_defconfig`. It keeps the normal
+Floral features, LTO and CFI enabled. A successful run uploads:
 
-On the ROM build machine, get just the exporter tools:
+- `Image.lz4`, the compiled shared ARM64 kernel;
+- `modules.tar.gz`, `Module.symvers`, `System.map`, `floral.config` and `kernel.release`;
+- `build.json` with source/compiler revisions and `SHA256SUMS`.
+
+### Optional complete boot image
+
+A kernel tree builds the kernel binary. A complete Android `boot.img` also contains the
+recovery ramdisk and device/release boot metadata, which are not stored in this kernel
+tree. To produce that image in the same run, select Coral or Flame and enter a direct
+HTTPS URL to that device's existing matching `boot.img` plus its SHA-256. No other ROM
+files are required. Leave both boot fields empty to compile the kernel alone.
+
+Actions replaces only the kernel in the supplied boot image using pinned AOSP packaging
+tools. It preserves the recovery ramdisk, DTB, command line, addresses and OS patch
+metadata, and regenerates/verifies an unsigned AVB hash footer if present. Signed AVB
+requires the release key and uses the native Android path below. Packaging is intended
+for the matching device/release and an unlocked bootloader. Validate boot, recovery and
+ROM module loading on the phone before distribution; standalone compilation does not
+compare exported symbol CRCs against the installed ROM's modules.
+
+### Optional full ROM ABI verification
+
+The separate **Build boot with full ROM ABI verification** workflow remains available
+when you want to compare every non-root exported CRC, kernel release and the exact ROM
+compiler/configuration. Its baseline export is an additional verification path, not a
+requirement for compiling this kernel or for the default workflow.
+
+On the normal ROM build machine, run this repository's exporter against the completed
+KSU-enabled ROM build, then supply the exported archive URL and SHA-256 to that separate
+workflow:
 
 ```bash
-git clone --depth=1 --filter=blob:none --sparse \
-  https://github.com/its-hecker/HeckerOsfloral-Kernel-NonKsu ~/hecker-boot-tools
-git -C ~/hecker-boot-tools sparse-checkout set tools/hecker
-```
-
-From the normal Coral ROM source directory, after its build completes:
-
-```bash
-python3 ~/hecker-boot-tools/tools/hecker/actions_boot.py export \
+python3 /path/to/HeckerOsfloral-Kernel-NonKsu/tools/hecker/actions_boot.py export \
   --android-root "$PWD" --product-out "$PWD/out/target/product/coral" \
   --device coral --output ~/HeckerOS-coral-baseline.tar.gz
 ```
 
-For Flame, use its normal build checkout and change both occurrences of `coral` to
-`flame`. If your build uses a different output directory, pass its actual product output.
-The exporter searches the checkout's Clang prebuilts for the exact compiler/linker
-identity in the built kernel's `compile.h`. Use `--clang-dir /absolute/compiler/path`
-if the compiler is elsewhere. The source kernel must still be the unchanged normal
-HeckerOS pin `48d6881fb8537f62811209927022e467d37e3a98`.
-
-Put the resulting archive at a direct HTTPS download URL reachable without login.
-Copy the SHA-256 printed by the exporter (also saved in the adjacent `.sha256` file),
-then enter the URL, hash and device in **Run workflow**. The archive contains the ROM's
-boot image, build properties, configuration/ABI information and build tools; it does not
-include the ROM build's private signing keys. Allow space for the compiler snapshot and
-temporary files when exporting. Python 3.12 or newer is required for safe archive extraction.
-
-The job uses the baseline configuration with only KSU settings removed, retains LTO/CFI
-and other normal settings, compiles `Image.lz4` and modules, and keeps the original boot's
-recovery ramdisk, DTB, command line, addresses and OS patch metadata. It checks the actual
-compiled symbols and **every non-root exported baseline CRC**, plus kernel release,
-before uploading anything. It regenerates and verifies an unsigned AVB hash footer when
-one was present. A baseline with a signed AVB footer needs its release signing key and
-must use the native Android build path below; the hosted path refuses to strip that signature.
-
-Artifacts are intended for an **unlocked bootloader and the matching device/ROM release**.
-The source and packaging checks also run automatically on changes to these tools. A
-successful check-only run does not compile a kernel; the manual run with a real baseline
-performs the ARM64 build. No baseline ROM outputs are committed to this repository.
+Use Flame's checkout and paths for Flame. The exporter automatically locates the exact
+Clang/linker from the built kernel's `compile.h`; `--clang-dir` overrides its search.
+Python 3.12 or newer is required for that baseline archive extraction path.
 
 ## Native Android boot image builds
 

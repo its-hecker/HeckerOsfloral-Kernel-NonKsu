@@ -1,27 +1,27 @@
-name: Build non-KSU boot image
+name: Build Floral kernel and boot image
 on:
   push:
     branches: [main]
-    paths: [.github/workflows/build-boot.yml, tools/hecker/**]
+    paths-ignore: ['README*', 'Documentation/**']
   workflow_dispatch:
     inputs:
       device:
-        description: Device matching the baseline ROM build
+        description: Device for optional boot packaging (kernel is shared)
         type: choice
         options: [coral, flame]
-        required: true
-      baseline_url:
-        description: HTTPS direct download URL for the exported ROM baseline tar.gz
+        default: coral
+      boot_img_url:
+        description: Optional direct HTTPS URL to a matching original boot.img (empty builds kernel only)
         type: string
-        required: true
-      baseline_sha256:
-        description: SHA-256 printed by actions_boot.py export
+        required: false
+      boot_img_sha256:
+        description: SHA-256 of that boot.img (required only when a boot URL is supplied)
         type: string
-        required: true
+        required: false
 permissions:
   contents: read
 concurrency:
-  group: nonksu-boot-${{ github.event_name }}-${{ inputs.device || 'checks' }}
+  group: floral-standalone-${{ github.ref }}-${{ inputs.device || 'shared' }}
   cancel-in-progress: false
 jobs:
   checks:
@@ -42,7 +42,7 @@ jobs:
           git init "$RUNNER_TEMP/avb"
           git -C "$RUNNER_TEMP/avb" fetch --depth=1 https://android.googlesource.com/platform/external/avb ba2dec4b035b0a3b61c5f8f8a74d86bcd450b1ee
           git -C "$RUNNER_TEMP/avb" checkout --detach FETCH_HEAD
-      - name: Verify source and boot build guards
+      - name: Verify source and packaging guards
         env:
           TEST_MKBOOTIMG: ${{ runner.temp }}/mkbootimg
           TEST_AVB_TOOL: ${{ runner.temp }}/avb/avbtool.py
@@ -50,58 +50,54 @@ jobs:
           set -euo pipefail
           python3 tools/hecker/verify_nonksu.py
           python3 -m unittest discover -s tools/hecker/tests -v
-  boot:
-    if: github.event_name == 'workflow_dispatch'
+  kernel:
     needs: checks
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     timeout-minutes: 330
     env:
-      DEVICE: ${{ inputs.device }}
-      BASELINE_URL: ${{ inputs.baseline_url }}
-      BASELINE_SHA256: ${{ inputs.baseline_sha256 }}
+      DEVICE: ${{ inputs.device || 'coral' }}
+      BASE_BOOT_URL: ${{ inputs.boot_img_url }}
+      BASE_BOOT_SHA256: ${{ inputs.boot_img_sha256 }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
           lfs: false
           persist-credentials: false
-      - name: Prepare hosted runner for the Floral LTO kernel
+      - name: Prepare hosted runner
         run: |
           set -euo pipefail
-          # Only remove unused SDKs from this disposable GitHub-hosted runner.
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends build-essential bc bison flex libssl-dev libelf-dev lz4 python3 python-is-python3 openssl
+          sudo apt-get install -y --no-install-recommends build-essential bc bison flex libssl-dev libelf-dev lz4 python3 python-is-python3 openssl libtinfo5 libncurses5
           sudo fallocate -l 8G /hecker-kernel.swap
           sudo chmod 600 /hecker-kernel.swap
           sudo mkswap /hecker-kernel.swap
           sudo swapon /hecker-kernel.swap
-          df -h "$GITHUB_WORKSPACE"
-      - name: Download and validate the matching ROM baseline
+      - name: Compile floral_defconfig directly from the kernel tree
         run: |
           set -euo pipefail
-          python3 tools/hecker/actions_boot.py fetch --device "$DEVICE" \
-            --url "$BASELINE_URL" --sha256 "$BASELINE_SHA256" \
-            --archive "$RUNNER_TEMP/baseline.tar.gz" --destination "$RUNNER_TEMP/baseline"
-      - name: Compile kernel, preserve recovery and package a compatible boot image
-        run: |
-          set -euo pipefail
-          python3 tools/hecker/actions_boot.py build --device "$DEVICE" \
-            --bundle "$RUNNER_TEMP/baseline" --out "$RUNNER_TEMP/nonksu-out" \
-            --destination "$RUNNER_TEMP/nonksu-release" --jobs 2
-      - name: Upload boot image, checksums and build provenance
+          python3 tools/hecker/standalone.py \
+            --tools "$RUNNER_TEMP/floral-tools" --out "$RUNNER_TEMP/floral-out" \
+            --destination "$RUNNER_TEMP/floral-artifacts" --jobs 2 --device "$DEVICE" \
+            --boot-url "$BASE_BOOT_URL" --boot-sha256 "$BASE_BOOT_SHA256"
+      - name: Upload compiled kernel and optional boot image
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: HeckerOS-${{ inputs.device }}-NonKSU-boot-${{ github.run_number }}
-          path: ${{ runner.temp }}/nonksu-release/
+          name: HeckerOS-Floral-NonKSU-${{ github.run_number }}
+          path: ${{ runner.temp }}/floral-artifacts/
           if-no-files-found: error
-          retention-days: 30
           compression-level: 0
-      - name: Record artifact scope
+          retention-days: 30
+      - name: Record outputs
         run: |
           {
-            echo "### HeckerOS $DEVICE non-KSU boot"
-            echo 'The boot image and SHA-256 checksums are in this run’s artifacts.'
-            echo 'Use only with the matching device, unlocked bootloader and ROM release used to export the baseline.'
-            echo 'Compilation and compatibility checks passed. Real-device boot, recovery and module tests are still required.'
+            echo '### Floral non-KSU kernel compiled'
+            echo 'Download Image.lz4, modules, configuration, symbols and checksums from this run’s artifact.'
+            if [ -n "$BASE_BOOT_URL" ]; then
+              echo "A $DEVICE boot.img was also packaged using the supplied original boot image."
+              echo 'Recovery and boot metadata are preserved. Test boot, recovery and ROM modules before distribution.'
+            else
+              echo 'No boot template was supplied: this run contains the compiled shared kernel, without a recovery ramdisk.'
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
