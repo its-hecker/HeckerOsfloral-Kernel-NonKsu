@@ -1,0 +1,121 @@
+{
+  "repository": "its-hecker/heckeros-floral-kernel",
+  "revision": "48d6881fb8537f62811209927022e467d37e3a98",
+  "variant": "nonksu",
+  "devices": [
+    "coral",
+    "flame"
+  ],
+  "removed": [
+    ".gitmodules",
+    "KernelSU",
+    "drivers/kernelsu",
+    "fs/susfs.c",
+    "include/linux/susfs.h",
+    "include/linux/susfs_def.h"
+  ],
+  "changes": {
+    "drivers/input/input.c": {
+      "source_sha256": "473ad2071d57f5b410e32f2219cf3ef719e3f0af56a2f5449a0efa7453a85810",
+      "nonksu_sha256": "6a85948c31e2d6921074423e62f278d9da5d1590624a3ffeac307b5f939a6422"
+    },
+    "fs/exec.c": {
+      "source_sha256": "32b1121026bff1927f8c9802b761e141d0ad6cc86634784198ff9d66d3be50af",
+      "nonksu_sha256": "62ddf0a54b14b6b8fc0a4c00cfaf178ed2d88bfb5daf4cc67b519d2cf7432fbc"
+    },
+    "fs/namei.c": {
+      "source_sha256": "dc96d621a233c07960e64d5b8a03c5b006b971742378080b3fa77680f789a896",
+      "nonksu_sha256": "9d134c0a3faf462a3ab9f4e110f18bb0ca40d1fb504690254ccef30797129abc"
+    },
+    "fs/namespace.c": {
+      "source_sha256": "bd82c9875950671fe525a430fa65b7874d6d9b35006905ce4f04774477f94a5c",
+      "nonksu_sha256": "db59257a6a5dfd7f0f137418bf93f469d3298f6bbe3ffcd3526f0f50b6cedb36"
+    },
+    "fs/notify/fdinfo.c": {
+      "source_sha256": "84f3584a2d6fb056163c825a3e3e10155a8da32711268651bbac57a1a2121315",
+      "nonksu_sha256": "76e8c9316492cb5c4b5000010bdf06663005b719c8249ebcf674243f92720140"
+    },
+    "fs/open.c": {
+      "source_sha256": "e4fee0fa27e933d8f51781bc9e30d4d7b9ab617956c95f7d91f00a7282e1268e",
+      "nonksu_sha256": "c0067bba1106e204a671d263b1dbd7abad631742ad0859817567330c5e1c6678"
+    },
+    "fs/proc/base.c": {
+      "source_sha256": "2cd4c461977e26945e1822308afbf5f0973d82ebcf80e712ee694254500f5e70",
+      "nonksu_sha256": "c8e7bb5388b90c1e9f9a7f1077a2f6d87192eee7349374c3bb9b9c57d982a569"
+    },
+    "fs/proc/cmdline.c": {
+      "source_sha256": "ee4e205b0c97d805570bd4fe64a16b5cd54a8fb0eae1d88f66eca49ba301e151",
+      "nonksu_sha256": "742b4d4529c8d4b2be6fbae3c985ed4c512ff20c0207a69cb4d56dcde0ee85d3"
+    },
+    "fs/proc/fd.c": {
+      "source_sha256": "478d9fffaa20ca66cbf17e47366992d9ef4c715ed6f54cb224eda7a582195b41",
+      "nonksu_sha256": "2945ae7fe835891408af654eef7437e3d947b02c02908a5d1d65ac6c2c8f7765"
+    },
+    "fs/proc/task_mmu.c": {
+      "source_sha256": "bd71bc43803ab15154e8245ceb99ced0d5d0e658f11b4147a6f7e73840ff1fa9",
+      "nonksu_sha256": "e1dacd07f24421fb0186f604e66ede9c7e17bd31075953890359a99ba0db9861"
+    },
+    "fs/proc_namespace.c": {
+      "source_sha256": "47a3497680da85c4c6f6893e4558d5d7ef2758d476a5f502455b9b1ecc07d7ad",
+      "nonksu_sha256": "1f7f2b938e1308974561c42ad10982b0b5ea9f7213fe190fa4714538b45d1756"
+    },
+    "fs/read_write.c": {
+      "source_sha256": "481688fbd8ca29a7e1fe7678fe150628d522a6478c68a4affc76c773d1a240f7",
+      "nonksu_sha256": "82ee8a668d4f17c152fb80e988bc56b5de26f1c17fb549bba7a91b6b5cb2bd54"
+    },
+    "fs/readdir.c": {
+      "source_sha256": "fe86060ea7df4d04b90c862f9ebe4f9063fe927a1289de7e730edb8d9cb3da96",
+      "nonksu_sha256": "952392b81ac1c84ee0c76b3642c2595545f66092b8aa75357f2d280d32a4280a"
+    },
+    "fs/stat.c": {
+      "source_sha256": "5d913765546997d2c2efcaef3d1f09363041b10e80153cc76786544471c5c19c",
+      "nonksu_sha256": "d0ce3d561de9fb52c78283d9ed622225751ecd5e1216997ac3a84161a9d56f9a"
+    },
+    "fs/statfs.c": {
+      "source_sha256": "802cc865ddeea2b62c15a7ebd70f4c979dae71fd3cc0c7a476d35d37aa3138ad",
+      "nonksu_sha256": "3536e4d8849b02673fbba3c7fd897753ecf5510004e2b8f3a710eb68b2f48a0b"
+    },
+    "kernel/kallsyms.c": {
+      "source_sha256": "a633c3ee7072e1b847f495d9405e0e1caa8ce823879a2ae1df4d90907e6e06ce",
+      "nonksu_sha256": "5135701971b99902efc76f2162b60d616a81c6c00650221cec4259c5b792436f"
+    },
+    "kernel/reboot.c": {
+      "source_sha256": "cd28df9eca6972c49198a718de47582047100bc3465ac9b562818e7ab704be14",
+      "nonksu_sha256": "d5dd2abedd8dd5a7efdda21532202b11adc58b89666df0a688b35e584eff70ed"
+    },
+    "kernel/sys.c": {
+      "source_sha256": "e20ddb1eb659e2679e9f0083bc684d5d2970b222615b8cda736f2f1132164024",
+      "nonksu_sha256": "fea4564e40dc9d55a386a1e9fbbba178b05a03ba3208bc77223619c703423121"
+    },
+    "mm/memory.c": {
+      "source_sha256": "9a12d20875c609806e4dd5a1733eeac37e36b193ebcd4bb1de2473c73c7cc466",
+      "nonksu_sha256": "dc2edc2cceb607d9127368971df8f274ca9effb59093ae18203803624c303f4f"
+    },
+    "security/selinux/avc.c": {
+      "source_sha256": "bd65fa0d09650dd5aeb7cd4292ab30481f93e23b2e8ab8bbb4db006324ad6919",
+      "nonksu_sha256": "0df551b2b5ea291ae74a512e5eae7cd14aee87a0290982ee8141ed424a09ac3a"
+    },
+    "security/selinux/hooks.c": {
+      "source_sha256": "a5e28520b724e11c057584ee31411cea98cc1009b43cd4b42179bfbd0cf16ae0",
+      "nonksu_sha256": "74229d45126b2a9a8edcf693180bb9714f0ead38447f4ef56237db082fd3a919"
+    },
+    "drivers/Kconfig": {
+      "source_sha256": "8eea9823bd2d4bfaa7666ffad402c54784fc7331edbfef8cb59152c9d85f90de",
+      "nonksu_sha256": "6b80f11a7242deafd36f72be26edb35a3c552f0c503cb258868e4787750b7f47"
+    },
+    "drivers/Makefile": {
+      "source_sha256": "f87033d675de3face2d99665243ad2da65c4318c89c24bd4470d6c2674cc2809",
+      "nonksu_sha256": "5a915fd42797172ee1cd0dd627c8586d8611abfdc70d0ca39ceaffb86f33f2a7"
+    },
+    "fs/Makefile": {
+      "source_sha256": "bdb6e2e4303be065d01c6f45ec52a36b9af9ba06bc36ddc869b5b0dd24d8dd3d",
+      "nonksu_sha256": "e8b7ef74f049a24c6e361a83563b0da66997ac12a64e41813853559c5b7569a7"
+    },
+    "arch/arm64/configs/floral_defconfig": {
+      "source_sha256": "eb4cf826da24db4e4bb0bb4703607844cab51c7ac5d7fe19f33a2e5ab06b5f08",
+      "nonksu_sha256": "436d97df613cbcca0898fda3f3536ad7da703f5081c25e4cdef081dccfc07c7b"
+    }
+  },
+  "preserved": "All non-root kernel code/configuration, including the GameSpace charging inhibitor",
+  "validation": "Source checks only; full target kernel/boot builds and phone validation required"
+}

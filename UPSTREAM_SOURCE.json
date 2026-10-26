@@ -1,0 +1,7 @@
+{
+  "repository": "its-hecker/infinity_cnb_kernel_google_msm-4.14",
+  "revision": "aaaa03e40200825133d21402cad8f2a86939a778",
+  "import": "Exact Git tree snapshot; original file modes, symlinks and submodule pins retained",
+  "target": "coral",
+  "rom_features": "Owned by its-hecker/HeckerOS, not this hardware repository"
+}
