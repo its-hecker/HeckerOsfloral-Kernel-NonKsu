@@ -1,0 +1,107 @@
+name: Build non-KSU boot image
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/build-boot.yml, tools/hecker/**]
+  workflow_dispatch:
+    inputs:
+      device:
+        description: Device matching the baseline ROM build
+        type: choice
+        options: [coral, flame]
+        required: true
+      baseline_url:
+        description: HTTPS direct download URL for the exported ROM baseline tar.gz
+        type: string
+        required: true
+      baseline_sha256:
+        description: SHA-256 printed by actions_boot.py export
+        type: string
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: nonksu-boot-${{ github.event_name }}-${{ inputs.device || 'checks' }}
+  cancel-in-progress: false
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          submodules: false
+          lfs: false
+          persist-credentials: false
+      - name: Fetch pinned AOSP tools for real boot format tests
+        run: |
+          set -euo pipefail
+          git init "$RUNNER_TEMP/mkbootimg"
+          git -C "$RUNNER_TEMP/mkbootimg" fetch --depth=1 https://android.googlesource.com/platform/system/tools/mkbootimg 4a27dd13adf9846e12d585d6fe99a375ebb58396
+          git -C "$RUNNER_TEMP/mkbootimg" checkout --detach FETCH_HEAD
+          git init "$RUNNER_TEMP/avb"
+          git -C "$RUNNER_TEMP/avb" fetch --depth=1 https://android.googlesource.com/platform/external/avb ba2dec4b035b0a3b61c5f8f8a74d86bcd450b1ee
+          git -C "$RUNNER_TEMP/avb" checkout --detach FETCH_HEAD
+      - name: Verify source and boot build guards
+        env:
+          TEST_MKBOOTIMG: ${{ runner.temp }}/mkbootimg
+          TEST_AVB_TOOL: ${{ runner.temp }}/avb/avbtool.py
+        run: |
+          set -euo pipefail
+          python3 tools/hecker/verify_nonksu.py
+          python3 -m unittest discover -s tools/hecker/tests -v
+  boot:
+    if: github.event_name == 'workflow_dispatch'
+    needs: checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    env:
+      DEVICE: ${{ inputs.device }}
+      BASELINE_URL: ${{ inputs.baseline_url }}
+      BASELINE_SHA256: ${{ inputs.baseline_sha256 }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          submodules: false
+          lfs: false
+          persist-credentials: false
+      - name: Prepare hosted runner for the Floral LTO kernel
+        run: |
+          set -euo pipefail
+          # Only remove unused SDKs from this disposable GitHub-hosted runner.
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends build-essential bc bison flex libssl-dev libelf-dev lz4 python3 python-is-python3 openssl
+          sudo fallocate -l 8G /hecker-kernel.swap
+          sudo chmod 600 /hecker-kernel.swap
+          sudo mkswap /hecker-kernel.swap
+          sudo swapon /hecker-kernel.swap
+          df -h "$GITHUB_WORKSPACE"
+      - name: Download and validate the matching ROM baseline
+        run: |
+          set -euo pipefail
+          python3 tools/hecker/actions_boot.py fetch --device "$DEVICE" \
+            --url "$BASELINE_URL" --sha256 "$BASELINE_SHA256" \
+            --archive "$RUNNER_TEMP/baseline.tar.gz" --destination "$RUNNER_TEMP/baseline"
+      - name: Compile kernel, preserve recovery and package a compatible boot image
+        run: |
+          set -euo pipefail
+          python3 tools/hecker/actions_boot.py build --device "$DEVICE" \
+            --bundle "$RUNNER_TEMP/baseline" --out "$RUNNER_TEMP/nonksu-out" \
+            --destination "$RUNNER_TEMP/nonksu-release" --jobs 2
+      - name: Upload boot image, checksums and build provenance
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: HeckerOS-${{ inputs.device }}-NonKSU-boot-${{ github.run_number }}
+          path: ${{ runner.temp }}/nonksu-release/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+      - name: Record artifact scope
+        run: |
+          {
+            echo "### HeckerOS $DEVICE non-KSU boot"
+            echo 'The boot image and SHA-256 checksums are in this run’s artifacts.'
+            echo 'Use only with the matching device, unlocked bootloader and ROM release used to export the baseline.'
+            echo 'Compilation and compatibility checks passed. Real-device boot, recovery and module tests are still required.'
+          } >> "$GITHUB_STEP_SUMMARY"

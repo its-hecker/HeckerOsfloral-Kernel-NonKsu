@@ -16,7 +16,64 @@ an opt-out variant; it does not change the normal ROM kernel or kernel features.
 “Non-KSU” describes removal of the built-in kernel root framework. It does not change
 the ROM's existing userdebug/development-ADB configuration or promise an integrity verdict.
 
-## Optional boot image builds
+## GitHub Actions boot image builds
+
+Open **Actions → Build non-KSU boot image → Run workflow** in this repository.
+The hosted Ubuntu job compiles this kernel and uploads a device-specific `boot.img`,
+SHA-256 checksums and JSON build provenance as an Actions artifact. Choose `coral` or
+`flame` and supply the matching ROM baseline archive's direct HTTPS URL and SHA-256.
+Run it separately for each device and release. It does not publish a GitHub release.
+
+The baseline comes from a **completed normal, KSU-enabled HeckerOS ROM build**.
+A boot image alone is insufficient: the job also needs that build's kernel configuration,
+exported module CRCs, kernel release, exact Clang/linker and Android packaging tools.
+The exporter collects these automatically. The complete Android source tree stays on
+your ROM build machine; Actions only receives the smaller baseline archive.
+
+On the ROM build machine, get just the exporter tools:
+
+```bash
+git clone --depth=1 --filter=blob:none --sparse \
+  https://github.com/its-hecker/HeckerOsfloral-Kernel-NonKsu ~/hecker-boot-tools
+git -C ~/hecker-boot-tools sparse-checkout set tools/hecker
+```
+
+From the normal Coral ROM source directory, after its build completes:
+
+```bash
+python3 ~/hecker-boot-tools/tools/hecker/actions_boot.py export \
+  --android-root "$PWD" --product-out "$PWD/out/target/product/coral" \
+  --device coral --output ~/HeckerOS-coral-baseline.tar.gz
+```
+
+For Flame, use its normal build checkout and change both occurrences of `coral` to
+`flame`. If your build uses a different output directory, pass its actual product output.
+The exporter searches the checkout's Clang prebuilts for the exact compiler/linker
+identity in the built kernel's `compile.h`. Use `--clang-dir /absolute/compiler/path`
+if the compiler is elsewhere. The source kernel must still be the unchanged normal
+HeckerOS pin `48d6881fb8537f62811209927022e467d37e3a98`.
+
+Put the resulting archive at a direct HTTPS download URL reachable without login.
+Copy the SHA-256 printed by the exporter (also saved in the adjacent `.sha256` file),
+then enter the URL, hash and device in **Run workflow**. The archive contains the ROM's
+boot image, build properties, configuration/ABI information and build tools; it does not
+include the ROM build's private signing keys. Allow space for the compiler snapshot and
+temporary files when exporting. Python 3.12 or newer is required for safe archive extraction.
+
+The job uses the baseline configuration with only KSU settings removed, retains LTO/CFI
+and other normal settings, compiles `Image.lz4` and modules, and keeps the original boot's
+recovery ramdisk, DTB, command line, addresses and OS patch metadata. It checks the actual
+compiled symbols and **every non-root exported baseline CRC**, plus kernel release,
+before uploading anything. It regenerates and verifies an unsigned AVB hash footer when
+one was present. A baseline with a signed AVB footer needs its release signing key and
+must use the native Android build path below; the hosted path refuses to strip that signature.
+
+Artifacts are intended for an **unlocked bootloader and the matching device/ROM release**.
+The source and packaging checks also run automatically on changes to these tools. A
+successful check-only run does not compile a kernel; the manual run with a real baseline
+performs the ARM64 build. No baseline ROM outputs are committed to this repository.
+
+## Native Android boot image builds
 
 Use the `nonksu` branch of the device's local manifest in a **separate Android source
 checkout**, with the same release source pins and build/signing configuration as the
@@ -66,8 +123,9 @@ recovery ramdisk, hardware metadata and build configuration. Initially distribut
 merely because the kernel source is shared. Compare actual build outputs and test both
 phones before consolidating them. Keep the normal boot image available as the counterpart.
 
-After an OTA, use the optional image built for that release. The first ARM64 kernel build,
-full boot build, module compatibility check and real-device acceptance remain pending.
+After an OTA, use the optional image built for that release. Check the selected Actions
+run for its compilation result and downloadable artifacts. Real-device boot, recovery,
+Wi-Fi/module and GameSpace charging tests remain necessary before distributing an image.
 Host configuration/source/packaging tests do not establish a tested flashable image.
 
 ## Source checks
