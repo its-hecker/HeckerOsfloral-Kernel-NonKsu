@@ -32,7 +32,7 @@ jobs:
             bootstrap_dir="$(mktemp -d)"
             cp -a .github tools README.HeckerOS.md "$bootstrap_dir/"
             git read-tree --reset -u "$SOURCE_SHA^{tree}"
-            git rm -r --ignore-unmatch .github/workflows
+            git rm -rf --ignore-unmatch .github/workflows
             mkdir -p .github/workflows tools/hecker
             cp "$bootstrap_dir/.github/workflows/import-source.yml" .github/workflows/import-source.yml
             cp -a "$bootstrap_dir/tools/hecker/." tools/hecker/
