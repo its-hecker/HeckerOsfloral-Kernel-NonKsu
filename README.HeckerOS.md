@@ -23,9 +23,12 @@ push to `main` (except documentation-only changes). **Run workflow** can also st
 manually with all fields left at their defaults. No ROM source checkout, completed ROM
 build, exported baseline, ROM configuration or ROM compiler snapshot is required.
 
-The job fetches pinned AOSP Clang `clang-r416183b`, the version declared by this tree's
-`build.config.common`, and uses the tree's own `floral_defconfig`. It keeps the normal
-Floral features, LTO and CFI enabled. A successful run uploads:
+The job fetches pinned AOSP Clang 22 `clang-r596125`, identified in the published
+26 October 2026 HeckerOS kernel, and uses the tree's own `floral_defconfig`. The older
+`build.config.common` compiler pin describes Google's legacy build setup. It keeps the normal
+Floral features, LTO and CFI enabled. Hosted builds use supported ThinLTO with two
+linker workers to reduce peak memory; the source defconfig and native Android build
+path retain their existing defaults. A successful run uploads:
 
 - `Image.lz4`, the compiled shared ARM64 kernel;
 - `modules.tar.gz`, `Module.symvers`, `System.map`, `floral.config` and `kernel.release`;

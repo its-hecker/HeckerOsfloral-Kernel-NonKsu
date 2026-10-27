@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -17,10 +18,11 @@ from actions_boot import compiler_identity, download_bundle, repack
 from package_boot import ROOT_SYMBOL, boot, digest, symbols
 from verify_nonksu import check as check_source
 
-# The compiler version declared by this tree's build.config.common.
-CLANG_VERSION = "clang-r416183b"
+# Clang 22/r596125 is identified in the published 2026-10-26 HeckerOS kernel.
+# build.config.common still describes Google's older standalone build environment.
+CLANG_VERSION = "clang-r596125"
 CLANG_REPO = "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86"
-CLANG_REVISION = "3f17560d9bd078537f29294c2bcf80b591821a09"
+CLANG_REVISION = "29182889399818f97baa65ea238c80e8117981eb"
 MKBOOTIMG_REPO = "https://android.googlesource.com/platform/system/tools/mkbootimg"
 MKBOOTIMG_REVISION = "4a27dd13adf9846e12d585d6fe99a375ebb58396"
 AVB_REPO = "https://android.googlesource.com/platform/external/avb"
@@ -54,7 +56,7 @@ def check_compiled(obj):
     config = (obj / ".config").read_text()
     if re.search(r"(?m)^CONFIG_KSU(?:_[A-Z0-9_]+)?=", config):
         raise ValueError("Root configuration enabled in the compiled kernel")
-    for setting in ("CONFIG_MODULES=y", "CONFIG_MODVERSIONS=y", "CONFIG_LTO_CLANG=y", "CONFIG_CFI_CLANG=y"):
+    for setting in ("CONFIG_MODULES=y", "CONFIG_MODVERSIONS=y", "CONFIG_LTO_CLANG=y", "CONFIG_THINLTO=y", "CONFIG_CFI_CLANG=y"):
         if setting not in config.splitlines():
             raise ValueError("Required Floral setting changed: " + setting)
     exported = symbols(obj / "Module.symvers")
@@ -76,14 +78,22 @@ def build(source, tools, obj, destination, jobs, device, boot_url="", boot_sha25
     check_source(source)
     fetch_tree(CLANG_REPO, CLANG_REVISION, tools / "clang", CLANG_VERSION)
     clang = tools / "clang" / CLANG_VERSION
+    # The first hosted runner was lost during full-program LTO at vmlinux.o. Keep LTO
+    # and CFI, use the tree's supported ThinLTO mode, and bound linker workers.
+    linker = tools / "ld.lld-limited"
+    linker.write_text("#!/bin/sh\nexec " + shlex.quote(str(clang / "bin/ld.lld")) +
+                      ' --threads=2 --thinlto-jobs=2 "$@"\n')
+    linker.chmod(0o755)
     env = dict(os.environ, PATH=str(clang / "bin") + ":" + os.environ["PATH"],
                LD_LIBRARY_PATH=str(clang / "lib64") + ":" + os.environ.get("LD_LIBRARY_PATH", ""),
                KBUILD_BUILD_USER="HeckerOS", KBUILD_BUILD_HOST="GitHub-Actions")
     env.pop("LOCALVERSION", None)
     args = ["make", "--no-print-directory", "-C", source, "O=" + str(obj), "ARCH=arm64",
-            "LLVM=1", "LLVM_IAS=1", "CC=clang", "LD=ld.lld", "HOSTLDFLAGS=-fuse-ld=lld", "LZ4=lz4"]
+            "LLVM=1", "LLVM_IAS=1", "CC=clang", "LD=" + str(linker), "HOSTLDFLAGS=-fuse-ld=lld", "LZ4=lz4"]
     print("Standalone compiler:", compiler_identity(clang), flush=True)
     command([*args, "floral_defconfig"], env=env)
+    command([source / "scripts/config", "--file", obj / ".config", "--enable", "THINLTO"])
+    command([*args, "olddefconfig"], env=env)
     command([*args, "-j" + str(jobs), "Image.lz4", "modules"], env=env)
     check_compiled(obj)
     destination.mkdir(parents=True)
@@ -98,6 +108,7 @@ def build(source, tools, obj, destination, jobs, device, boot_url="", boot_sha25
               "defconfig": "floral_defconfig", "compiler": compiler_identity(clang),
               "compiler_repository": CLANG_REPO, "compiler_revision": CLANG_REVISION,
               "compiler_directory": CLANG_VERSION, "compiler_sha256": digest(clang / "bin/clang"),
+              "lto": "ThinLTO", "linker_flags": ["--threads=2", "--thinlto-jobs=2"],
               "kernel_release": (destination / "kernel.release").read_text().strip(),
               "kernel_sha256": digest(destination / "Image.lz4"),
               "validation": "ARM64 compilation and root-absence checks; real-device tests pending"}

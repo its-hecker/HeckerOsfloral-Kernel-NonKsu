@@ -79,7 +79,7 @@ jobs:
           set -euo pipefail
           python3 tools/hecker/standalone.py \
             --tools "$RUNNER_TEMP/floral-tools" --out "$RUNNER_TEMP/floral-out" \
-            --destination "$RUNNER_TEMP/floral-artifacts" --jobs 2 --device "$DEVICE" \
+            --destination "$RUNNER_TEMP/floral-artifacts" --jobs 4 --device "$DEVICE" \
             --boot-url "$BASE_BOOT_URL" --boot-sha256 "$BASE_BOOT_SHA256"
       - name: Upload compiled kernel and optional boot image
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
